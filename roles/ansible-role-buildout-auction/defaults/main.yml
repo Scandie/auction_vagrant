@@ -1,0 +1,23 @@
+---
+# defaults file for ansible-role-buildout-auction
+role_buildout:
+  users_cache: true
+  username: vagrant
+  buildout_folder: "openprocurement.auction.buildout"
+  buildout_cfg_template: "api.cfg.j2"
+  buildout_cfg_filename: "auction.cfg"
+  repository_path: "https://github.com/yshalenyk/openprocurement.auction.buildout.git"
+  repository_version: "dutch"
+  extra_files: # src and content are mutually exclusive
+    - content: ""
+      dest: auth.ini
+      backup: yes
+#    - src: "hosts"
+#      dest: hosts
+#      backup: yes
+  extra_post_build_cmds: []
+  extra_post_run_cmds: ["bin/auction_test simple"]
+  start_restart_all: true
+  restart_all_cmd: "bin/circusctl restart"
+  start_all_cmd: "bin/circusd --daemon"
+

@@ -1,0 +1,2 @@
+- src: git@gitlab.qg:devops/ansible-role-common.git
+  scm: git

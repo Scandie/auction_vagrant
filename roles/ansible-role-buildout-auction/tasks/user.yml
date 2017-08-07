@@ -1,0 +1,136 @@
+---
+- block:
+  - name: Setup buildout cache
+    file: path={{ item.value }} state=directory recurse=yes
+    with_items:
+      - { option: 'eggs-directory', value: '/home/{{role_buildout.username}}/.buildout/eggs' }
+      - { option: 'download-cache', value: '/home/{{role_buildout.username}}/.buildout/downloads' }
+      - { option: 'extends-cache', value: '/home/{{role_buildout.username}}/.buildout/extends' }
+
+
+  - name: Put buildout cache config
+    ini_file: dest=/home/{{role_buildout.username}}/.buildout/default.cfg section=buildout option={{ item.option }} value={{ item.value }} backup=yes
+    tags:
+    - all
+    with_items:
+      - { option: 'eggs-directory', value: '/home/{{role_buildout.username}}/.buildout/eggs' }
+      - { option: 'download-cache', value: '/home/{{role_buildout.username}}/.buildout/downloads' }
+      - { option: 'extends-cache', value: '/home/{{role_buildout.username}}/.buildout/extends' }
+  when: role_buildout.users_cache
+
+- name: Update buildout git files
+  git: repo={{ role_buildout.repository_path }}
+     dest=/home/{{role_buildout.username}}/{{ role_buildout.buildout_folder }}
+     version={{ role_buildout.repository_version }}
+     force=yes
+  tags:
+    - role_buildout_git
+
+- name: Put {{ role_buildout.buildout_cfg_filename }}
+  template:
+    src: "{{ role_buildout.buildout_cfg_template }}"
+    dest: /home/{{role_buildout.username}}/{{ role_buildout.buildout_folder}}/{{ role_buildout.buildout_cfg_filename}}
+    backup: yes
+  tags:
+    - role_buildout_cfg
+
+- name: Put extra_files
+  copy:
+    content: "{{ item.content }}"
+    dest: /home/{{role_buildout.username}}/{{ role_buildout.buildout_folder}}/{{ item.dest }}
+    backup: "{{item.backup}}"
+  no_log: true
+  when: "'content' in item"
+  with_items: "{{ role_buildout.extra_files }}"
+  tags:
+    - role_buildout_extra_files
+
+- name: Put extra_files
+  copy:
+    src: "{{ item.src }}"
+    dest: /home/{{role_buildout.username}}/{{ role_buildout.buildout_folder}}/{{ item.dest }}
+    backup: "{{item.backup}}"
+  no_log: true
+  when: "'src' in item"
+  with_items: "{{ role_buildout.extra_files }}"
+  tags:
+    - role_buildout_extra_files
+
+- name: Is Bootstarped ?
+  shell: test -f  /home/{{role_buildout.username}}/{{ role_buildout.buildout_folder}}/bin/buildout
+  register: buildout_exists
+  failed_when: False
+  tags:
+    - role_buildout_bootstrap
+
+# add setuptools version
+- name: Run Bootstarp
+  shell: python bootstrap.py --setuptools-version=11.3 -c {{ role_buildout.buildout_cfg_filename}}
+    chdir=/home/{{role_buildout.username}}/{{ role_buildout.buildout_folder}}
+  when: buildout_exists
+  tags:
+    - role_buildout_bootstrap
+
+- name: Run Buildout
+  shell: bin/buildout  -c {{ role_buildout.buildout_cfg_filename}}
+  register: buildout_result
+#  failed_when: "'keyring' in buildout_result.stderr"
+  ignore_errors: True
+  args:
+    chdir: /home/{{role_buildout.username}}/{{ role_buildout.buildout_folder}}
+  tags:
+    - role_buildout_build
+
+### jarn.mkrelease fail fix ###
+- name: Fix Buildout
+  lineinfile:
+    dest: '/home/{{role_buildout.username}}/.buildout/eggs/jarn.mkrelease-4.0.1-py2.7.egg/EGG-INFO/requires.txt'
+    line: 'keyring >= 10.4.0; sys_platform == "darwin"'
+    state: absent
+  when: buildout_result | failed
+  tags:
+    - role_buildout_build
+
+- name: Rerun Buildout
+  args:
+    chdir: /home/{{role_buildout.username}}/{{ role_buildout.buildout_folder}}
+  shell: bin/buildout  -c {{ role_buildout.buildout_cfg_filename}}
+  when: buildout_result | failed
+  tags:
+    - role_buildout_build
+### end of fix ###
+
+- name: Run extra_post_build_cmds
+  shell: "{{ item }}"
+  args:
+    chdir: /home/{{role_buildout.username}}/{{ role_buildout.buildout_folder}}
+  with_items: "{{role_buildout.extra_post_build_cmds}}"
+  tags:
+    - role_buildout_post_build_cmds
+
+- name: Cicusctl restart
+  shell: "{{role_buildout.restart_all_cmd}}"
+  args:
+    chdir: /home/{{role_buildout.username}}/{{ role_buildout.buildout_folder}}
+  register: circus
+  failed_when: False
+  when: role_buildout.start_restart_all
+  tags:
+    - role_buildout_restart
+
+- name: Circusd start
+  shell: "{{role_buildout.start_all_cmd}}"
+  args:
+    chdir: /home/{{role_buildout.username}}/{{ role_buildout.buildout_folder}}
+  when: role_buildout.start_restart_all and (circus.rc != 0)
+  tags:
+    - role_buildout_restart
+
+- name: Run extra_post_run_cmds
+  shell: "{{ item }}"
+  args:
+    chdir: /home/{{role_buildout.username}}/{{ role_buildout.buildout_folder}}
+  with_items: "{{role_buildout.extra_post_run_cmds}}"
+  ignore_errors: True
+  tags:
+    - role_buildout_extra_post_run_cmds

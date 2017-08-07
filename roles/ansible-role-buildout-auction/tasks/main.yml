@@ -1,0 +1,12 @@
+---
+# tasks file for ansible-role-buildout-auction
+- block:
+     - include: user.yml
+       become: yes
+       become_user: "{{role_buildout.username }}"
+  when: ansible_ssh_user| default(ansible_user_id) != role_buildout.username
+
+- block:
+     - include: user.yml
+  when: ansible_ssh_user| default(ansible_user_id) == role_buildout.username
+

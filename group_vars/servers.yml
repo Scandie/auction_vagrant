@@ -1,0 +1,25 @@
+role_common:
+  persist_hostname: false
+  force_provision: false
+  packages:
+    - bash-completion
+    - couchdb
+    - file
+    - gcc
+    - git
+    - libffi-devel
+    - libselinux-python
+    - libsodium
+    - libsodium-devel
+    - logrotate
+    - openssl-devel
+    - policycoreutils-python
+    - python-devel
+    - python2-systemd
+    - redhat-rpm-config
+    - redis
+    - sqlite-devel
+    - zeromq3-devel
+    - bind-utils   # for devel
+    - nc           # for devel
+    - libselinux-python
